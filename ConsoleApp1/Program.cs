@@ -8,7 +8,9 @@ namespace CodeSmellsExample
     {
         static void Main(string[] args)
         {
-            OrderProcessor processor = new OrderProcessor(new PriceCalculator(), new Logger(), new DiscountService());
+            var orderService = new OrderService(new PriceCalculator(), new DiscountService(), new OrderRepository());
+            var processor = new OrderProcessor(orderService, new Logger());
+
             processor.ProcessOrder("John Doe", 5, "standard");
             processor.ProcessOrder("Jane Doe", 15, "premium");
             processor.ProcessOrder("Alice", 2, "standard");
@@ -17,30 +19,52 @@ namespace CodeSmellsExample
 
     class OrderProcessor
     {
-        private readonly PriceCalculator _calculator;
+        private readonly OrderService _orderService;
         private readonly Logger _logger;
-        private readonly DiscountService _discountService;
-        private List<string> processedOrders = new List<string>();
 
-        public OrderProcessor(PriceCalculator calculator, Logger logger, DiscountService discountService)
+        public OrderProcessor(OrderService orderService, Logger logger)
         {
-            _calculator = calculator;
+            _orderService = orderService;
             _logger = logger;
-            _discountService = discountService;
         }
 
         public void ProcessOrder(string customer, int quantity, string customerType)
         {
-            double price = _calculator.CalculatePrice(quantity);
-            price = _discountService.ApplyDiscount(price, customerType);
-            Console.WriteLine($"Customer: {customer}, Quantity: {quantity}, Total Price: {price}");
-            _logger.Log($"Processed order for {customer}, quantity: {quantity}, price: {price}, type: {customerType}");
-            SaveToFile(customer, quantity, price);
+            double finalPrice = _orderService.HandleOrder(customer, quantity, customerType);
+            Console.WriteLine($"Customer: {customer}, Quantity: {quantity}, Total Price: {finalPrice}");
+            _logger.Log($"Processed order for {customer}, quantity: {quantity}, price: {finalPrice}, type: {customerType}");
+        }
+    }
+
+    class OrderService
+    {
+        private readonly PriceCalculator _calculator;
+        private readonly DiscountService _discountService;
+        private readonly OrderRepository _orderRepository;
+
+        public OrderService(PriceCalculator calculator, DiscountService discountService, OrderRepository orderRepository)
+        {
+            _calculator = calculator;
+            _discountService = discountService;
+            _orderRepository = orderRepository;
         }
 
-        private void SaveToFile(string customer, int quantity, double price)
+        public double HandleOrder(string customer, int quantity, string customerType)
         {
-            File.WriteAllText("orders.txt", $"{customer}, {quantity}, {price}\n");
+            double price = _calculator.CalculatePrice(quantity);
+            price = _discountService.ApplyDiscount(price, customerType);
+            _orderRepository.SaveOrder(customer, quantity, price);
+            return price;
+        }
+    }
+
+    class OrderRepository
+    {
+        private const string FilePath = "orders.txt";
+
+        public void SaveOrder(string customer, int quantity, double price)
+        {
+            File.AppendAllText(FilePath, $"{customer}, {quantity}, {price}\n");
         }
     }
 
