@@ -8,8 +8,9 @@ namespace CodeSmellsExample
     {
         static void Main(string[] args)
         {
-            var logger = new Logger();
-            var orderService = new OrderService(new PriceCalculator(), new DiscountService(), new OrderRepository());
+            var config = new Config("orders.txt", "logs.txt");
+            var logger = new Logger(config);
+            var orderService = new OrderService(new PriceCalculator(), new DiscountService(), new OrderRepository(config));
             var processor = new OrderProcessor(orderService, logger);
 
             processor.ProcessOrder("John Doe", 5, "standard");
@@ -17,6 +18,18 @@ namespace CodeSmellsExample
             processor.ProcessOrder("Alice", 2, "standard");
 
             logger.PrintLogs(); // Вивід усіх логів
+        }
+    }
+
+    class Config
+    {
+        public string OrderFilePath { get; }
+        public string LogFilePath { get; }
+
+        public Config(string orderFilePath, string logFilePath)
+        {
+            OrderFilePath = orderFilePath;
+            LogFilePath = logFilePath;
         }
     }
 
@@ -63,11 +76,16 @@ namespace CodeSmellsExample
 
     class OrderRepository
     {
-        private const string FilePath = "orders.txt";
+        private readonly string _filePath;
+
+        public OrderRepository(Config config)
+        {
+            _filePath = config.OrderFilePath;
+        }
 
         public void SaveOrder(string customer, int quantity, double price)
         {
-            File.AppendAllText(FilePath, $"{customer}, {quantity}, {price}\n");
+            File.AppendAllText(_filePath, $"{customer}, {quantity}, {price}\n");
         }
     }
 
@@ -98,8 +116,13 @@ namespace CodeSmellsExample
 
     class Logger
     {
-        private const string LogFilePath = "logs.txt";
+        private readonly string _logFilePath;
         private List<string> logs = new List<string>();
+
+        public Logger(Config config)
+        {
+            _logFilePath = config.LogFilePath;
+        }
 
         public void Log(string message)
         {
@@ -112,7 +135,7 @@ namespace CodeSmellsExample
         {
             try
             {
-                File.AppendAllText(LogFilePath, message + "\n");
+                File.AppendAllText(_logFilePath, message + "\n");
             }
             catch (Exception ex)
             {
