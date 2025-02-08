@@ -8,12 +8,15 @@ namespace CodeSmellsExample
     {
         static void Main(string[] args)
         {
+            var logger = new Logger();
             var orderService = new OrderService(new PriceCalculator(), new DiscountService(), new OrderRepository());
-            var processor = new OrderProcessor(orderService, new Logger());
+            var processor = new OrderProcessor(orderService, logger);
 
             processor.ProcessOrder("John Doe", 5, "standard");
             processor.ProcessOrder("Jane Doe", 15, "premium");
             processor.ProcessOrder("Alice", 2, "standard");
+
+            logger.PrintLogs(); // Вивід усіх логів
         }
     }
 
@@ -95,12 +98,35 @@ namespace CodeSmellsExample
 
     class Logger
     {
+        private const string LogFilePath = "logs.txt";
         private List<string> logs = new List<string>();
 
         public void Log(string message)
         {
             logs.Add(message);
             Console.WriteLine($"LOG: {message}");
+            SaveLogToFile(message);
+        }
+
+        private void SaveLogToFile(string message)
+        {
+            try
+            {
+                File.AppendAllText(LogFilePath, message + "\n");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving log: {ex.Message}");
+            }
+        }
+
+        public void PrintLogs()
+        {
+            Console.WriteLine("--- Log History ---");
+            foreach (var log in logs)
+            {
+                Console.WriteLine(log);
+            }
         }
     }
 }
