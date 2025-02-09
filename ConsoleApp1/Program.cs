@@ -10,14 +10,17 @@ namespace CodeSmellsExample
         {
             var config = new Config("orders.txt", "logs.txt");
             var logger = new Logger(config);
-            var orderService = new OrderService(new PriceCalculator(), new DiscountService(), new OrderRepository(config));
+            var priceService = new PriceService();
+            var discountService = new DiscountService();
+            var orderPersistenceService = new OrderPersistenceService(config.OrderFilePath);
+            var orderService = new OrderService(priceService, discountService, orderPersistenceService);
             var processor = new OrderProcessor(orderService, logger);
 
             processor.ProcessOrder("John Doe", 5, "standard");
             processor.ProcessOrder("Jane Doe", 15, "premium");
             processor.ProcessOrder("Alice", 2, "standard");
 
-            logger.PrintLogs(); // Вивід усіх логів
+            logger.PrintLogs(); // Виведення усіх логів
         }
     }
 
@@ -54,49 +57,34 @@ namespace CodeSmellsExample
 
     class OrderService
     {
-        private readonly PriceCalculator _calculator;
+        private readonly PriceService _priceService;
         private readonly DiscountService _discountService;
-        private readonly OrderRepository _orderRepository;
+        private readonly OrderPersistenceService _orderPersistenceService;
 
-        public OrderService(PriceCalculator calculator, DiscountService discountService, OrderRepository orderRepository)
+        public OrderService(PriceService priceService, DiscountService discountService, OrderPersistenceService orderPersistenceService)
         {
-            _calculator = calculator;
+            _priceService = priceService;
             _discountService = discountService;
-            _orderRepository = orderRepository;
+            _orderPersistenceService = orderPersistenceService;
         }
 
         public double HandleOrder(string customer, int quantity, string customerType)
         {
-            double price = _calculator.CalculatePrice(quantity);
+            double price = _priceService.CalculatePrice(quantity);
             price = _discountService.ApplyDiscount(price, customerType);
-            _orderRepository.SaveOrder(customer, quantity, price);
+            _orderPersistenceService.SaveOrder(customer, quantity, price);
             return price;
         }
     }
 
-    class OrderRepository
-    {
-        private readonly string _filePath;
-
-        public OrderRepository(Config config)
-        {
-            _filePath = config.OrderFilePath;
-        }
-
-        public void SaveOrder(string customer, int quantity, double price)
-        {
-            File.AppendAllText(_filePath, $"{customer}, {quantity}, {price}\n");
-        }
-    }
-
-    class PriceCalculator
+    class PriceService
     {
         public double CalculatePrice(int quantity)
         {
             double price = quantity * 10;
             if (quantity > 10)
             {
-                price *= 0.9; 
+                price *= 0.9; // Знижка для кількості більше 10
             }
             return price;
         }
@@ -108,9 +96,24 @@ namespace CodeSmellsExample
         {
             if (customerType == "premium")
             {
-                return price * 0.85; 
+                return price * 0.85; // Знижка для преміум клієнтів
             }
             return price;
+        }
+    }
+
+    class OrderPersistenceService
+    {
+        private readonly string _filePath;
+
+        public OrderPersistenceService(string filePath)
+        {
+            _filePath = filePath;
+        }
+
+        public void SaveOrder(string customer, int quantity, double price)
+        {
+            File.AppendAllText(_filePath, $"{customer}, {quantity}, {price}\n");
         }
     }
 
