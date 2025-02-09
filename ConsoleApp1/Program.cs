@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using static CodeSmellsExample.Logger;
 
 namespace CodeSmellsExample
 {
@@ -10,14 +11,22 @@ namespace CodeSmellsExample
         {
             var config = new Config("orders.txt", "logs.txt");
             var logger = new Logger(config);
-            var orderService = new OrderService(new PriceCalculator(), new DiscountService(), new OrderRepository(config));
+            var priceService = new PriceService();
+            var discountService = new DiscountService();
+            var orderPersistenceService = new OrderPersistenceService(config.OrderFilePath);
+            var orderService = new OrderService(priceService, discountService, orderPersistenceService);
             var processor = new OrderProcessor(orderService, logger);
 
-            processor.ProcessOrder("John Doe", 5, "standard");
-            processor.ProcessOrder("Jane Doe", 15, "premium");
-            processor.ProcessOrder("Alice", 2, "standard");
+            // Створюємо об'єкти Order
+            var order1 = new Order("John Doe", 5, CustomerType.Standard);
+            var order2 = new Order("Jane Doe", 15, CustomerType.Premium);
+            var order3 = new Order("Alice", 2, CustomerType.Standard);
 
-            logger.PrintLogs(); // Вивід усіх логів
+            processor.ProcessOrder(order1);
+            processor.ProcessOrder(order2);
+            processor.ProcessOrder(order3);
+
+            logger.PrintLogs();
         }
     }
 
@@ -44,59 +53,54 @@ namespace CodeSmellsExample
             _logger = logger;
         }
 
-        public void ProcessOrder(string customer, int quantity, string customerType)
+        public void ProcessOrder(Order order)
         {
-            double finalPrice = _orderService.HandleOrder(customer, quantity, customerType);
-            Console.WriteLine($"Customer: {customer}, Quantity: {quantity}, Total Price: {finalPrice}");
-            _logger.Log($"Processed order for {customer}, quantity: {quantity}, price: {finalPrice}, type: {customerType}");
+            double finalPrice = _orderService.HandleOrder(order); 
+            LogOrderProcessing(order, finalPrice);
+            PrintOrderResult(order, finalPrice);
+        }
+
+        private void PrintOrderResult(Order order, double finalPrice)
+        {
+            Console.WriteLine($"Customer: {order.CustomerName}, Quantity: {order.Quantity}, Total Price: {finalPrice}");
+        }
+
+        private void LogOrderProcessing(Order order, double finalPrice)
+        {
+            _logger.Log($"Processed order for {order.CustomerName}, quantity: {order.Quantity}, price: {finalPrice}, type: {order.CustomerType}");
         }
     }
 
     class OrderService
     {
-        private readonly PriceCalculator _calculator;
+        private readonly PriceService _priceService;
         private readonly DiscountService _discountService;
-        private readonly OrderRepository _orderRepository;
+        private readonly OrderPersistenceService _orderPersistenceService;
 
-        public OrderService(PriceCalculator calculator, DiscountService discountService, OrderRepository orderRepository)
+        public OrderService(PriceService priceService, DiscountService discountService, OrderPersistenceService orderPersistenceService)
         {
-            _calculator = calculator;
+            _priceService = priceService;
             _discountService = discountService;
-            _orderRepository = orderRepository;
+            _orderPersistenceService = orderPersistenceService;
         }
 
-        public double HandleOrder(string customer, int quantity, string customerType)
+        public double HandleOrder(Order order)
         {
-            double price = _calculator.CalculatePrice(quantity);
-            price = _discountService.ApplyDiscount(price, customerType);
-            _orderRepository.SaveOrder(customer, quantity, price);
+            double price = _priceService.CalculatePrice(order.Quantity);
+            price = _discountService.ApplyDiscount(price, order.CustomerType);
+            _orderPersistenceService.SaveOrder(order.CustomerName, order.Quantity, price);
             return price;
         }
     }
 
-    class OrderRepository
-    {
-        private readonly string _filePath;
-
-        public OrderRepository(Config config)
-        {
-            _filePath = config.OrderFilePath;
-        }
-
-        public void SaveOrder(string customer, int quantity, double price)
-        {
-            File.AppendAllText(_filePath, $"{customer}, {quantity}, {price}\n");
-        }
-    }
-
-    class PriceCalculator
+    class PriceService
     {
         public double CalculatePrice(int quantity)
         {
             double price = quantity * 10;
             if (quantity > 10)
             {
-                price *= 0.9; 
+                price *= 0.9; // Знижка для кількості більше 10
             }
             return price;
         }
@@ -104,13 +108,28 @@ namespace CodeSmellsExample
 
     class DiscountService
     {
-        public double ApplyDiscount(double price, string customerType)
+        public double ApplyDiscount(double price, CustomerType customerType)
         {
-            if (customerType == "premium")
+            if (customerType == CustomerType.Premium)
             {
-                return price * 0.85; 
+                return price * 0.85; // Знижка для преміум клієнтів
             }
             return price;
+        }
+    }
+
+    class OrderPersistenceService
+    {
+        private readonly string _filePath;
+
+        public OrderPersistenceService(string filePath)
+        {
+            _filePath = filePath;
+        }
+
+        public void SaveOrder(string customer, int quantity, double price)
+        {
+            File.AppendAllText(_filePath, $"{customer}, {quantity}, {price}\n");
         }
     }
 
@@ -150,6 +169,26 @@ namespace CodeSmellsExample
             {
                 Console.WriteLine(log);
             }
+        }
+
+        public enum CustomerType
+        {
+            Standard,
+            Premium
+        }
+    }
+
+    class Order
+    {
+        public string CustomerName { get; set; }
+        public int Quantity { get; set; }
+        public CustomerType CustomerType { get; set; }
+
+        public Order(string customerName, int quantity, CustomerType customerType)
+        {
+            CustomerName = customerName;
+            Quantity = quantity;
+            CustomerType = customerType;
         }
     }
 }
