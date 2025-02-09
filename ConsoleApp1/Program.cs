@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using static CodeSmellsExample.Logger;
 
 namespace CodeSmellsExample
 {
@@ -16,11 +17,16 @@ namespace CodeSmellsExample
             var orderService = new OrderService(priceService, discountService, orderPersistenceService);
             var processor = new OrderProcessor(orderService, logger);
 
-            processor.ProcessOrder("John Doe", 5, "standard");
-            processor.ProcessOrder("Jane Doe", 15, "premium");
-            processor.ProcessOrder("Alice", 2, "standard");
+            // Створюємо об'єкти Order
+            var order1 = new Order("John Doe", 5, CustomerType.Standard);
+            var order2 = new Order("Jane Doe", 15, CustomerType.Premium);
+            var order3 = new Order("Alice", 2, CustomerType.Standard);
 
-            logger.PrintLogs(); // Виведення усіх логів
+            processor.ProcessOrder(order1);
+            processor.ProcessOrder(order2);
+            processor.ProcessOrder(order3);
+
+            logger.PrintLogs();
         }
     }
 
@@ -47,11 +53,21 @@ namespace CodeSmellsExample
             _logger = logger;
         }
 
-        public void ProcessOrder(string customer, int quantity, string customerType)
+        public void ProcessOrder(Order order)
         {
-            double finalPrice = _orderService.HandleOrder(customer, quantity, customerType);
-            Console.WriteLine($"Customer: {customer}, Quantity: {quantity}, Total Price: {finalPrice}");
-            _logger.Log($"Processed order for {customer}, quantity: {quantity}, price: {finalPrice}, type: {customerType}");
+            double finalPrice = _orderService.HandleOrder(order); 
+            LogOrderProcessing(order, finalPrice);
+            PrintOrderResult(order, finalPrice);
+        }
+
+        private void PrintOrderResult(Order order, double finalPrice)
+        {
+            Console.WriteLine($"Customer: {order.CustomerName}, Quantity: {order.Quantity}, Total Price: {finalPrice}");
+        }
+
+        private void LogOrderProcessing(Order order, double finalPrice)
+        {
+            _logger.Log($"Processed order for {order.CustomerName}, quantity: {order.Quantity}, price: {finalPrice}, type: {order.CustomerType}");
         }
     }
 
@@ -68,11 +84,11 @@ namespace CodeSmellsExample
             _orderPersistenceService = orderPersistenceService;
         }
 
-        public double HandleOrder(string customer, int quantity, string customerType)
+        public double HandleOrder(Order order)
         {
-            double price = _priceService.CalculatePrice(quantity);
-            price = _discountService.ApplyDiscount(price, customerType);
-            _orderPersistenceService.SaveOrder(customer, quantity, price);
+            double price = _priceService.CalculatePrice(order.Quantity);
+            price = _discountService.ApplyDiscount(price, order.CustomerType);
+            _orderPersistenceService.SaveOrder(order.CustomerName, order.Quantity, price);
             return price;
         }
     }
@@ -92,9 +108,9 @@ namespace CodeSmellsExample
 
     class DiscountService
     {
-        public double ApplyDiscount(double price, string customerType)
+        public double ApplyDiscount(double price, CustomerType customerType)
         {
-            if (customerType == "premium")
+            if (customerType == CustomerType.Premium)
             {
                 return price * 0.85; // Знижка для преміум клієнтів
             }
@@ -153,6 +169,26 @@ namespace CodeSmellsExample
             {
                 Console.WriteLine(log);
             }
+        }
+
+        public enum CustomerType
+        {
+            Standard,
+            Premium
+        }
+    }
+
+    class Order
+    {
+        public string CustomerName { get; set; }
+        public int Quantity { get; set; }
+        public CustomerType CustomerType { get; set; }
+
+        public Order(string customerName, int quantity, CustomerType customerType)
+        {
+            CustomerName = customerName;
+            Quantity = quantity;
+            CustomerType = customerType;
         }
     }
 }
